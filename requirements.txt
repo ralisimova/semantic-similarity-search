@@ -1,0 +1,9 @@
+pandas>=2.2.3
+networkx>=3.4
+streamlit>=1.39.0
+numpy>=2.0.0
+tqdm>=4.66.4
+matplotlib>=3.9.0
+rapidfuzz
+requests
+streamlit-searchbox
