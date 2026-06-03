@@ -21,55 +21,7 @@ def load_entity_map(path):
             if len(parts) >= 2:
                 entity_map[parts[0]] = parts[1]
     return entity_map
-# import re
 
-
-# def score_alias(alias):
-#     alias = alias.strip()
-
-#     score = 0
-
-#     # heavy penalties
-#     if "/" in alias:
-#         score -= 1000
-#     if "comments" in alias.lower():
-#         score -= 1000
-
-#     # prefer readable title case
-#     if re.match(r"^[A-ZÀ-Ž][A-Za-zÀ-ÿ0-9 .,'()-]+$", alias):
-#         score += 100
-
-#     # prefer alphabetic names
-#     if re.match(r"^[A-Za-zÀ-ÿ .,'()-]+$", alias):
-#         score += 30
-
-#     # penalize all lowercase
-#     if alias.islower():
-#         score -= 40
-
-#     # shorter often cleaner
-#     score -= len(alias) * 0.2
-
-#     return score
-
-
-# def load_entity_map(path):
-#     entity_map = {}
-
-#     with open(path, "r", encoding="utf-8") as f:
-#         for line in f:
-#             parts = line.strip().split("\t")
-
-#             if len(parts) < 2:
-#                 continue
-
-#             qid = parts[0]
-#             aliases = parts[1:]
-
-#             best = max(aliases, key=score_alias)
-#             entity_map[qid] = best.strip()
-
-#     return entity_map
 # ------------------------------------------------------------
 # STEP 2: Load cleaned geographic triples
 # ------------------------------------------------------------

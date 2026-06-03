@@ -18,58 +18,6 @@ def load_entity_map(path):
             if len(parts) >= 2:
                 entity_map[parts[0]] = parts[1]
     return entity_map
-# import re
-
-
-# def load_entity_map(path):
-#     entity_map = {}
-
-#     with open(path, "r", encoding="utf-8") as f:
-#         for line in f:
-#             parts = line.strip().split("\t")
-
-#             if len(parts) < 2:
-#                 continue
-
-#             qid = parts[0]
-#             aliases = parts[1:]
-
-#             best_alias = None
-#             best_score = -1
-
-#             for alias in aliases:
-#                 alias = alias.strip()
-
-#                 if not alias:
-#                     continue
-
-#                 score = 0
-
-#                 # Prefer readable labels
-#                 if "/" not in alias:
-#                     score += 5
-
-#                 if "comments" not in alias.lower():
-#                     score += 3
-
-#                 # Prefer title-like text
-#                 if re.match(r"^[A-Za-zÀ-ÿ0-9 .,'()-]+$", alias):
-#                     score += 5
-
-#                 # Penalize URLs/slugs
-#                 if "/" in alias:
-#                     score -= 10
-
-#                 # Prefer shorter readable names
-#                 score -= len(alias) * 0.05
-
-#                 if score > best_score:
-#                     best_score = score
-#                     best_alias = alias
-
-#             entity_map[qid] = best_alias if best_alias else qid
-
-#     return entity_map
 
 # ------------------------------------------------------------
 # STEP 2: Load triples

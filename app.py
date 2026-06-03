@@ -40,24 +40,7 @@ st.write("Compare geographic entities using a Wikidata-based knowledge graph.")
 # ------------------------------------------------------------
 st.sidebar.header("Entity Comparison")
 
-# entity_a = st.sidebar.text_input("Entity A (QID)", value="Q472")
-# entity_b = st.sidebar.text_input("Entity B (QID)", value="Q3591")
 
-# entity_a_input = st.sidebar.text_input("Entity A (name or QID)", value="Sofia")
-# entity_b_input = st.sidebar.text_input("Entity B (name or QID)", value="Plovdiv")
-# entity_a_label = st.sidebar.selectbox(
-#     "Entity A",
-#     entity_labels,
-#     index=entity_labels.index("Sofia")
-#     if "Sofia" in entity_labels else 0
-# )
-
-# entity_b_label = st.sidebar.selectbox(
-#     "Entity B",
-#     entity_labels,
-#     index=entity_labels.index("Plovdiv")
-#     if "Plovdiv" in entity_labels else 1
-# )
 
 def resolve_entity_candidates(user_input, label_index):
     # exact local match first
@@ -72,25 +55,7 @@ def resolve_entity_candidates(user_input, label_index):
 
     return wikidata_search(user_input)
 
-# st.write("Labels loaded:", len(entity_labels))
-# st.write(entity_labels[:10])
-# def search_entities(searchterm):
-#     return [
-#         label
-#         for label in entity_labels
-#         if searchterm.lower() in label.lower()
-#     ][:20]
-
-# entity_a_label = st_searchbox(
-#     search_entities,
-#     label="Entity A",
-#     key="entity_a_search"
-# )
-# entity_b_label = st_searchbox(
-#     search_entities,
-#     label="Entity B",
-#     key="entity_b_search"
-# )   
+ 
 entity_a_text = st.text_input(
     "Entity A",
     value="Sofia"
@@ -110,8 +75,7 @@ candidates_b = resolve_entity_candidates(
     entity_b_text,
     label_index
 )
-# st.write(candidates_a)
-# st.write(candidates_b)
+
 entity_a_choice = st.selectbox(
     "Select matching entity for A",
     candidates_a,
@@ -129,18 +93,12 @@ entity_b_choice = st.selectbox(
     f"({x.get('qid', x.get('id','?'))}) - "
     f"{x.get('description','')}"
 )
-# entity_a = resolve_entity(entity_a_input, label_index, G)
-# entity_b = resolve_entity(entity_b_input, label_index, G)
 
-# entity_a = label_to_qid.get(entity_a_label)
-# entity_b = label_to_qid.get(entity_b_label)
 
 entity_a = entity_a_choice["qid"]
 entity_b = entity_b_choice["qid"]
 
-# if entity_a is None or entity_b is None:
-#     st.error("Please select valid entities.")
-#     st.stop()
+
 if entity_a not in G:
     st.warning(
         f"{entity_a_choice['label']} is not present in the geographic subgraph."

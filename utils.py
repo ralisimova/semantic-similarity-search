@@ -9,45 +9,6 @@ def build_label_index(G):
 
     return label_to_qid
   
-# def resolve_entity(user_input, label_index, G):
-#     user_input = user_input.strip()
-
-#     # Case 1: already a QID
-#     if user_input in G:
-#         return user_input
-
-#     # Case 2: lowercase label match
-#     return label_index.get(user_input.lower(), None)
-  
-# import requests
-
-
-# def wikidata_search(label, limit=5):
-#     url = "https://www.wikidata.org/w/api.php"
-
-#     params = {
-#         "action": "wbsearchentities",
-#         "search": label,
-#         "language": "en",
-#         "format": "json",
-#         "limit": limit
-#     }
-
-#     r = requests.get(url, params=params)
-#     data = r.json()
-
-#     results = []
-
-#     for item in data.get("search", []):
-#         results.append({
-#             "qid": item["id"],
-#             "label": item.get("label", ""),
-#             "description": item.get("description", "")
-#         })
-
-#     return results
-
-import requests
 
 import requests
 
