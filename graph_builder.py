@@ -5,9 +5,9 @@ from collections import defaultdict
 from tqdm import tqdm
 import pickle
 
-INPUT_PATH = "data/processed/geo_subgraph.txt"
+INPUT_PATH = "data/processed/movies_subgraph.txt"
 ENTITY_PATH = "data/raw/wikidata5m_entity.txt"
-OUTPUT_PATH = "data/processed/geo_graph.gpickle"
+OUTPUT_PATH = "data/processed/movies_graph.gpickle"
 
 
 # ------------------------------------------------------------
@@ -23,7 +23,7 @@ def load_entity_map(path):
     return entity_map
 
 # ------------------------------------------------------------
-# STEP 2: Load cleaned geographic triples
+# STEP 2: Load cleaned  triples
 # ------------------------------------------------------------
 def load_triples(path):
     triples = []

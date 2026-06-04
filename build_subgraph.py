@@ -1,153 +1,175 @@
+import networkx as nx
 import pandas as pd
-from collections import defaultdict
 from tqdm import tqdm
+import pickle
 
-RAW_PATH = "data/raw/wikidata5m_transductive_train.txt"
-ENTITY_PATH = "data/raw/wikidata5m_entity.txt"
-
-OUTPUT_PATH = "data/processed/geo_subgraph.txt"
-
-# ------------------------------------------------------------
-# STEP 1: Load entity labels (QIDs → names)
-# ------------------------------------------------------------
-def load_entity_map(path):
-    entity_map = {}
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            parts = line.strip().split("\t")
-            if len(parts) >= 2:
-                entity_map[parts[0]] = parts[1]
-    return entity_map
-
-# ------------------------------------------------------------
-# STEP 2: Load triples
-# ------------------------------------------------------------
-def load_triples(path):
-    triples = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in tqdm(f, desc="Loading triples"):
-            parts = line.strip().split("\t")
-            if len(parts) == 3:
-                h, r, t = parts
-                triples.append((h, r, t))
-    return triples
+# =========================
+# FILES
+# =========================
+ENTITY_FILE = "data/raw/wikidata5m_entity.txt"
+RELATION_FILE = "data/raw/wikidata5m_relation.txt"
+TRIPLE_FILE = "data/raw/wikidata5m_transductive_train.txt"
 
 
-# ------------------------------------------------------------
-# STEP 3: Extract geographic KG
-# ------------------------------------------------------------
-def build_geo_subgraph(triples):
-    allowed_relations = {"P31", "P17", "P36", "P131", "P1082"}
+# GRAPH_OUTPUT_PATH = "data/processed/movies_graph.gpickle"
 
-    geo_triples = []
-    city_population = defaultdict(int)
+OUTPUT_PATH = "data/processed/movies_subgraph.txt"
 
-    for h, r, t in tqdm(triples, desc="Filtering geo triples"):
-        if r not in allowed_relations:
+# =========================
+# WIKIDATA CONSTANTS
+# =========================
+INSTANCE_OF = "P31"
+
+P_CAST = "P161"
+P_DIRECTOR = "P57"
+P_GENRE = "P136"
+P_COUNTRY = "P495"
+
+MOVIE_CLASS = "Q11424"
+
+# =========================
+# LOAD ENTITIES
+# =========================
+print("Loading entity labels...")
+
+entity_labels = {}
+
+with open(ENTITY_FILE, encoding="utf8") as f:
+    for line in tqdm(f):
+        parts = line.strip().split("\t")
+        if len(parts) >= 2:
+            entity_labels[parts[0]] = parts[1]
+
+print("Entities:", len(entity_labels))
+
+# =========================
+# STEP 1: FIND MOVIES
+# =========================
+print("Finding movies...")
+
+movies = set()
+
+with open(TRIPLE_FILE, encoding="utf8") as f:
+    for line in tqdm(f):
+        h, r, t = line.strip().split("\t")
+
+        if r == INSTANCE_OF and t == MOVIE_CLASS:
+            movies.add(h)
+
+print("Movies found:", len(movies))
+
+# LIMIT FOR GRAPH SIZE (IMPORTANT)
+MAX_MOVIES = 1500
+movies = set(list(movies)[:MAX_MOVIES])
+
+# =========================
+# STEP 2: BUILD GRAPH
+# =========================
+print("Building graph...")
+
+G = nx.MultiDiGraph()
+
+# Add movies
+for m in movies:
+    G.add_node(
+        m,
+        label=entity_labels.get(m, m),
+        type="movie"
+    )
+
+# =========================
+# STEP 3: EXTRACT RELATIONS
+# =========================
+print("Extracting relations...")
+
+actors = set()
+directors = set()
+genres = set()
+countries = set()
+
+with open(TRIPLE_FILE, encoding="utf8") as f:
+    for line in tqdm(f):
+        h, r, t = line.strip().split("\t")
+
+        if h not in movies:
             continue
 
-        geo_triples.append((h, r, t))
+        # CAST
+        if r == P_CAST:
+            G.add_node(t, label=entity_labels.get(t, t), type="actor")
+            G.add_edge(h, t, relation="cast")
+            actors.add(t)
 
-        # population tracking
-        if r == "P1082":
-            try:
-                city_population[h] = int(t)
-            except:
-                pass
+        # DIRECTOR
+        elif r == P_DIRECTOR:
+            G.add_node(t, label=entity_labels.get(t, t), type="director")
+            G.add_edge(h, t, relation="director")
+            directors.add(t)
 
-    return geo_triples, city_population
+        # GENRE
+        elif r == P_GENRE:
+            G.add_node(t, label=entity_labels.get(t, t), type="genre")
+            G.add_edge(h, t, relation="genre")
+            genres.add(t)
 
+        # COUNTRY
+        elif r == P_COUNTRY:
+            G.add_node(t, label=entity_labels.get(t, t), type="country")
+            G.add_edge(h, t, relation="country")
+            countries.add(t)
 
-# ------------------------------------------------------------
-# STEP 4: Identify countries and cities
-# ------------------------------------------------------------
-def extract_entities(geo_triples):
-    countries = set()
-    capitals = set()
-    city_country = defaultdict(set)
+print("Movies:", len(movies))
+print("Actors:", len(actors))
+print("Directors:", len(directors))
+print("Genres:", len(genres))
+print("Countries:", len(countries))
 
-    for h, r, t in geo_triples:
-        # instance of country
-        if r == "P31" and "Q6256" in t:
-            countries.add(h)
+print("Final nodes:", G.number_of_nodes())
+print("Final edges:", G.number_of_edges())
 
-        # country relation
-        if r == "P17":
-            city_country[h].add(t)
+# =========================
+# STEP 4: EXPORT NODE TABLE
+# =========================
+# nodes_df = pd.DataFrame([
+#     {
+#         "id": n,
+#         "label": G.nodes[n].get("label", n),
+#         "type": G.nodes[n].get("type", "unknown")
+#     }
+#     for n in G.nodes()
+# ])
 
-        # capital
-        if r == "P36":
-            capitals.add(t)
+# nodes_df.to_csv("movie_nodes.csv", index=False)
 
-    return countries, capitals, city_country
+# # =========================
+# # STEP 5: EXPORT EDGE TABLE
+# # =========================
+# edges_df = pd.DataFrame([
+#     {
+#         "source": u,
+#         "target": v,
+#         "relation": d["relation"]
+#     }
+#     for u, v, d in G.edges(data=True)
+# ])
 
+# edges_df.to_csv("movie_edges.csv", index=False)
 
-# ------------------------------------------------------------
-# STEP 5: Select top 5 cities per country
-# ------------------------------------------------------------
-def select_top_cities(city_country, city_population, entity_map):
-    country_cities = defaultdict(list)
+# =========================
+# STEP 5.1: SAVE FILTERED TRIPLES
+# =========================
+with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    for u, v, d in G.edges(data=True):
+        relation = d.get("relation", "")
+        f.write(f"{u}\t{relation}\t{v}\n")
 
-    for city, countries in city_country.items():
-        pop = city_population.get(city, 0)
-        for c in countries:
-            country_cities[c].append((city, pop))
+# # =========================
+# # STEP 6: SAVE GRAPH
+# # =========================
+# nx.write_graphml(G, "movie_graph.graphml")
+# nx.write_gexf(G, "movie_graph.gexf")
 
-    top_cities = defaultdict(list)
+# with open("movie_graph.pkl", "wb") as f:
+#     pickle.dump(G, f)
 
-    for country, cities in country_cities.items():
-        sorted_cities = sorted(cities, key=lambda x: x[1], reverse=True)
-        top_cities[country] = sorted_cities[:5]
-
-    return top_cities
-
-
-# ------------------------------------------------------------
-# STEP 6: Save cleaned geographic subgraph
-# ------------------------------------------------------------
-def save_subgraph(geo_triples, top_cities, entity_map):
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-
-        # Save filtered triples
-        for h, r, t in geo_triples:
-            f.write(f"{h}\t{r}\t{t}\n")
-
-        # Add top city structure explicitly
-        for country, cities in top_cities.items():
-            for city, pop in cities:
-                f.write(f"{city}\tTOP_CITY_OF\t{country}\n")
-
-
-# ------------------------------------------------------------
-# MAIN PIPELINE
-# ------------------------------------------------------------
-def main():
-    print("Loading entity map...")
-    entity_map = load_entity_map(ENTITY_PATH)
-
-    print("Loading triples...")
-    triples = load_triples(RAW_PATH)
-
-    print("Building geographic subgraph...")
-    geo_triples, city_population = build_geo_subgraph(triples)
-
-    print("Extracting entities...")
-    countries, capitals, city_country = extract_entities(geo_triples)
-
-    print("Selecting top cities per country...")
-    top_cities = select_top_cities(city_country, city_population, entity_map)
-
-    print("Saving subgraph...")
-    save_subgraph(geo_triples, top_cities, entity_map)
-
-    print("DONE ✔")
-    print(f"Geo subgraph saved to: {OUTPUT_PATH}")
-
-    print("\nStats:")
-    print("Countries:", len(countries))
-    print("Capitals:", len(capitals))
-    print("Cities with country links:", len(city_country))
-
-
-if __name__ == "__main__":
-    main()
+# print("DONE ✅")

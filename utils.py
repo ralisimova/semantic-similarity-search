@@ -25,27 +25,27 @@ BAD_HINTS = [
 ]
 
 
-def score_candidate(item):
-    score = 0
+# def score_candidate(item):
+#     score = 0
 
-    label = (item.get("label") or "").lower()
-    desc = (item.get("description") or "").lower()
+#     label = (item.get("label") or "").lower()
+#     desc = (item.get("description") or "").lower()
 
-    # boost geographic meaning
-    for w in GOOD_HINTS:
-        if w in desc:
-            score += 50
+#     # boost geographic meaning
+#     for w in GOOD_HINTS:
+#         if w in desc:
+#             score += 50
 
-    # penalize irrelevant meanings
-    for w in BAD_HINTS:
-        if w in desc:
-            score -= 100
+#     # penalize irrelevant meanings
+#     for w in BAD_HINTS:
+#         if w in desc:
+#             score -= 100
 
-    # exact label match bonus
-    if label == item.get("search", "").lower():
-        score += 10
+#     # exact label match bonus
+#     if label == item.get("search", "").lower():
+#         score += 10
 
-    return score
+#     return score
 
 
 def wikidata_search(label, limit=5):
@@ -170,3 +170,100 @@ def resolve_entity(user_input, label_index, G):
             return qid
 
     return None
+
+
+def get_entity_info(G, node):
+    data = G.nodes[node]
+
+    info = {
+        "qid": node,
+        "label": data.get("label", node),
+        "dbpedia": data.get("dbpedia", "N/A"),
+        "degree": G.degree(node),
+        "relations": []
+    }
+
+    for neighbor in G.neighbors(node):
+        edge_data = G.get_edge_data(node, neighbor)
+
+        info["relations"].append({
+            "target": G.nodes[neighbor].get("label", neighbor),
+            "relation": edge_data.get("relation", "unknown")
+        })
+
+    return info
+
+
+import networkx as nx
+
+
+def build_local_graph(G, center_node):
+
+    H = nx.Graph()
+
+    H.add_node(
+        center_node,
+        label=G.nodes[center_node].get("label", center_node)
+    )
+
+    for neighbor in G.neighbors(center_node):
+
+        H.add_node(
+            neighbor,
+            label=G.nodes[neighbor].get("label", neighbor)
+        )
+
+        edge = G.get_edge_data(center_node, neighbor)
+
+        H.add_edge(
+            center_node,
+            neighbor,
+            label=edge.get("relation", "")
+        )
+
+    return H
+
+from  pyvis.network import Network
+import streamlit.components.v1 as components
+import tempfile
+def visualize_graph(H):
+
+    net = Network(
+        height="600px",
+        width="100%",
+        bgcolor="#ffffff",
+        font_color="black"
+    )
+
+    for node, data in H.nodes(data=True):
+
+        net.add_node(
+            node,
+            label=data.get("label", node)
+        )
+
+    for u, v, data in H.edges(data=True):
+
+        net.add_edge(
+            u,
+            v,
+            title=data.get("label", "")
+        )
+
+    tmp_file = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".html"
+    )
+
+    net.save_graph(tmp_file.name)
+
+    html = open(
+        tmp_file.name,
+        "r",
+        encoding="utf-8"
+    ).read()
+
+    components.html(
+        html,
+        height=650
+    )
