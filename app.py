@@ -1,197 +1,164 @@
 import streamlit as st
-import networkx as nx
-from geoproject.similarity import  most_similar_entities, load_graph, most_similar_sematch
-from utils import build_label_index, resolve_entity, wikidata_search
-from streamlit_searchbox import st_searchbox
-from sematch_similarity import sematch_similarity
+
+from similarity_engine import sematch_similarity
+from helpers import build_label_index, build_local_graph, load_graph, visualize_graph, get_entity_info
+
+
 
 # ------------------------------------------------------------
-# LOAD GRAPH 
+# CONFIG
+# ------------------------------------------------------------
+st.set_page_config(
+    page_title="Semantic Similarity KG Demo",
+    layout="wide"
+)
+
+
+# ------------------------------------------------------------
+# LOAD GRAPH (cached)
 # ------------------------------------------------------------
 @st.cache_resource
 def get_graph():
-    return load_graph("data/processed/geo_graph.gpickle")
+    return load_graph("data/processed/movies_graph.gpickle")
 
 
 G = get_graph()
 label_index = build_label_index(G)
 
-# G = get_graph()
 
-label_to_qid = {}
-entity_labels = []
+# ------------------------------------------------------------
+# BUILD LABEL LIST (for dropdown usability)
+# ------------------------------------------------------------
+labels = [
+    (node, data.get("label", node))
+    for node, data in G.nodes(data=True)
+    if data.get("label")
+]
+
+labels = []
 
 for node, data in G.nodes(data=True):
-    label = data.get("label", "").strip()
+    label = data.get("label", "")
 
-    if label:
-        label_to_qid[label] = node
-        entity_labels.append(label)
+    if not label:
+        continue
 
-entity_labels = sorted(set(entity_labels))
+    label = str(label).strip()
+
+    # FILTER BAD TOKENS
+    if label.startswith("!") or label.startswith("config"):
+        continue
+
+    if len(label) < 2:
+        continue
+
+    labels.append((node, label))
+    
+labels = sorted(labels, key=lambda x: x[1])
+
+
+node_to_label = {n: l for n, l in labels}
+label_to_node = {l: n for n, l in labels}
+
+
 # ------------------------------------------------------------
 # TITLE
 # ------------------------------------------------------------
-st.title("Semantic Similarity Search in Knowledge Graphs")
-st.write("Compare geographic entities using a Wikidata-based knowledge graph.")
+st.title("🌍 Semantic Similarity in Knowledge Graphs (Sematch)")
+st.caption("Compare geographic entities using Wikidata5M + Sematch WordNet similarity")
 
 
 # ------------------------------------------------------------
-# ENTITY INPUTS
+# SIDEBAR INFO
 # ------------------------------------------------------------
-st.sidebar.header("Entity Comparison")
+st.sidebar.header("📊 Graph Stats")
+
+st.sidebar.write(f"Nodes: {G.number_of_nodes()}")
+st.sidebar.write(f"Edges: {G.number_of_edges()}")
 
 
+# ------------------------------------------------------------
+# ENTITY SELECTION
+# ------------------------------------------------------------
+st.subheader("🔎 Compare Two Entities")
 
-def resolve_entity_candidates(user_input, label_index):
-    # exact local match first
-    local_qid = label_index.get(user_input.lower())
+col1, col2 = st.columns(2)
 
-    if local_qid:
-        return [{
-            "qid": local_qid,
-            "label": user_input,
-            "description": "Local graph match"
-        }]
-
-    return wikidata_search(user_input)
-
- 
-entity_a_text = st.text_input(
-    "Entity A",
-    value="Sofia"
-)
-
-entity_b_text = st.text_input(
-    "Entity B",
-    value="Plovdiv"
-)
-
-candidates_a = resolve_entity_candidates(
-    entity_a_text,
-    label_index
-)
-
-candidates_b = resolve_entity_candidates(
-    entity_b_text,
-    label_index
-)
-
-entity_a_choice = st.selectbox(
-    "Select matching entity for A",
-    candidates_a,
-    format_func=lambda x:
-    f"{x.get('label','?')} "
-    f"({x.get('qid', x.get('id','?'))}) - "
-    f"{x.get('description','')}"
-)
-
-entity_b_choice = st.selectbox(
-    "Select matching entity for B",
-    candidates_b,
-    format_func=lambda x:
-    f"{x.get('label','?')} "
-    f"({x.get('qid', x.get('id','?'))}) - "
-    f"{x.get('description','')}"
-)
-
-
-entity_a = entity_a_choice["qid"]
-entity_b = entity_b_choice["qid"]
-
-
-if entity_a not in G:
-    st.warning(
-        f"{entity_a_choice['label']} is not present in the geographic subgraph."
+with col1:
+    entity_a_label = st.selectbox(
+        "Entity A",
+        [l for _, l in labels],
+        index=0,
+        key="entity_a"
     )
 
-if entity_b not in G:
-    st.warning(
-        f"{entity_b_choice['label']} is not present in the geographic subgraph."
-    )
-       
-print (entity_a, entity_b)
-# ------------------------------------------------------------
-# RUN SIMILARITY
-# ------------------------------------------------------------
-if st.sidebar.button("Compute Similarity"):
-
-    if entity_a is None or entity_b is None:
-        st.error("Entity not found. Try a different name (e.g., Sofia, France).")
-    else:
-        score = sematch_similarity(                                 
-    entity_a,
-    entity_b
-)
-        st.subheader("Similarity Results")
-        st.metric(
-    "Sematch Similarity",
-    score
-)
-    #     st.metric("Final Similarity Score", result["score"])
-
-    #     col1, col2, col3, col4 = st.columns(4)
-
-    #     with col1:
-    #         st.metric("Path Similarity", result["path_similarity"])
-
-    #     with col2:
-    #         st.metric("Neighbor Similarity", result["neighbor_similarity"])
-
-    #     with col3:
-    #         st.metric("Relation Similarity", result["relation_similarity"])
-
-    #     with col4:
-    #         st.metric(
-    #     "Sematch Similarity",
-    #     result["sematch_similarity"]
-    # )
-        st.success("Similarity computed successfully ✔")
-
-
-# ------------------------------------------------------------
-# MOST SIMILAR ENTITIES
-# ------------------------------------------------------------
-st.sidebar.header("Explore Similar Cities")
-
-selected_entity = st.sidebar.text_input("Entity for search", value="Q472")
-
-if st.sidebar.button("Find Similar Entities"):
-
-    if selected_entity not in G:
-        st.error("Entity not found in graph.")
-    else:
+with col2:
+    entity_b_label = st.selectbox(
+        "Entity B",
+        [l for _, l in labels],
+        index=1,
+        key="entity_b"
         
-        results = most_similar_sematch(G, selected_entity)
+    )
 
-        st.subheader("🔎 Most Similar Entities")
 
-        for node, score in results:
-            label = G.nodes[node].get("label", node)
-            st.write(f"**{label}** ({node}) → Score: {round(score, 4)}")
+entity_a = label_to_node[entity_a_label]
+entity_b = label_to_node[entity_b_label]
 
 
 # ------------------------------------------------------------
-# GRAPH INFO
+# COMPUTE SIMILARITY BUTTON
 # ------------------------------------------------------------
-st.sidebar.header("Graph Stats")
+if st.button("Compute Semantic Similarity", type="primary"):
 
-if st.sidebar.button("Show Graph Stats"):
+    result = sematch_similarity( entity_a, entity_b)
+    print(result)
 
-    st.write("### 📌 Knowledge Graph Overview")
-    st.write(f"Nodes: {G.number_of_nodes()}")
-    st.write(f"Edges: {G.number_of_edges()}")
+    st.subheader("📌 Results")
+    st.text(f"**Similarity Score:** `{result}`")
 
 
-# ------------------------------------------------------------
-# SAMPLE HELP SECTION
-# ------------------------------------------------------------
-st.sidebar.header("Example QIDs")
 
-st.sidebar.write("""
-- Sofia → Q472  
-- Plovdiv → Q3591  
-- Bulgaria → Q219  
-- Greece → Q41  
-- Europe → Q46  
-""")
+# --------------ENTITY INFO --------------
+    
+st.subheader("Entity Information")
+
+selected_label = st.selectbox(
+    "Select entity",
+    [l for _, l in labels]
+)
+
+selected_node = label_to_node[selected_label]
+
+info = get_entity_info(G, selected_node)
+
+st.write(f"**QID:** {info['qid']}")
+st.write(f"**Label:** {info['label']}")
+st.write(f"**DBpedia:** {info['dbpedia']}")
+st.write(f"**Degree:** {info['degree']}")
+
+st.write("### Relations")
+
+for rel in info["relations"][:20]:
+    st.write(
+        f"- {rel['relation']} → {rel['target']}"
+    )
+    
+    
+# ------------ LOCAL GRAPH VISUALIZATION --------------
+st.subheader("Local Graph Visualization")
+
+selected_label = st.selectbox(
+    "Graph Center",
+    [l for _, l in labels],
+    key="graph_center"
+)
+
+selected_node = label_to_node[selected_label]
+
+H = build_local_graph(
+    G,
+    selected_node
+)
+
+visualize_graph(H)
