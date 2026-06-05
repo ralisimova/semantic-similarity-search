@@ -1,3 +1,4 @@
+import json
 import pickle
 import networkx as nx
 from  pyvis.network import Network
@@ -8,6 +9,14 @@ import tempfile
 def load_graph(path):
     with open(path, "rb") as f:
         return pickle.load(f)
+
+
+def load_stats(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {}
 
 
 def build_label_index(G):
@@ -49,8 +58,6 @@ def build_local_graph(G, center_node):
     return H
   
   
-
-
 
 def visualize_graph(H):
 
@@ -101,7 +108,6 @@ def get_entity_info(G, node):
     info = {
         "qid": node,
         "label": data.get("label", node),
-        "dbpedia": data.get("dbpedia", "N/A"),
         "degree": G.degree(node),
         "relations": []
     }

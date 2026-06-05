@@ -11,7 +11,7 @@ OUTPUT_PATH = "data/processed/geo_graph_v2.gpickle"
 
 
 # ------------------------------------------------------------
-# STEP 1: Load entity labels (QID -> human name)
+# STEP 1: Load entity labels 
 # ------------------------------------------------------------
 def load_entity_map(path):
     entity_map = {}
@@ -23,7 +23,7 @@ def load_entity_map(path):
     return entity_map
 
 # ------------------------------------------------------------
-# STEP 2: Load cleaned  triples
+# STEP 2: Load  triples
 # ------------------------------------------------------------
 def load_triples(path):
     triples = []
@@ -56,7 +56,7 @@ def build_graph(triples, entity_map):
 
 
 # ------------------------------------------------------------
-# STEP 4: Compute node statistics (optional but useful for similarity)
+# STEP 4: Compute node statistics
 # ------------------------------------------------------------
 def compute_node_features(G):
     degree_dict = dict(G.degree())
@@ -71,14 +71,6 @@ def compute_node_features(G):
 def save_graph(G, path):
     with open(path, "wb") as f:
       pickle.dump(G, f)
-
-
-# ------------------------------------------------------------
-# STEP 6: Load graph (utility function for later)
-# ------------------------------------------------------------
-def load_graph(path):
-    with open(path, "rb") as f:
-        return pickle.load(f)
 
 
 # ------------------------------------------------------------
@@ -100,7 +92,6 @@ def main():
     print("Saving graph...")
     save_graph(G, OUTPUT_PATH)
 
-    print("DONE ✔")
     print(f"Graph saved to: {OUTPUT_PATH}")
 
     print("\nGraph stats:")

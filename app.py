@@ -5,6 +5,7 @@ from helpers import (
     build_label_index,
     build_local_graph,
     load_graph,
+    load_stats,
     visualize_graph,
     get_entity_info,
 )
@@ -25,8 +26,14 @@ def get_graph():
     return load_graph("data/processed/geo_graph_v2.gpickle")
 
 
+@st.cache_resource
+def get_stats():
+    return load_stats("data/processed/geo_graph_stats.json")
+
+
 G = get_graph()
 label_index = build_label_index(G)
+stats = get_stats()
 
 # ------------------------------------------------------------
 # BUILD LABELS
@@ -57,7 +64,7 @@ label_to_node = {l: n for n, l in labels}
 # ------------------------------------------------------------
 # TITLE
 # ------------------------------------------------------------
-st.title("🌍 Semantic Similarity in Knowledge Graphs")
+st.title("Semantic Similarity in Knowledge Graphs")
 st.caption(
     "Explore entities and compute semantic similarity using "
     "Wikidata5M + Sematch"
@@ -68,11 +75,11 @@ st.caption(
 # ------------------------------------------------------------
 tab_home, tab_compare, tab_search, tab_entity, tab_graph = st.tabs(
     [
-        "🏠 Home",
-        "🔎 Compare Entities",
-           "🔍 Semantic Search",
-        "📄 View Entity",
-        "🕸️ Explore Graph",
+        "Home",
+        "Compare Entities",
+        "Semantic Search",
+        "View Entity",
+        "Explore Graph",
     ]
 )
 
@@ -81,7 +88,7 @@ tab_home, tab_compare, tab_search, tab_entity, tab_graph = st.tabs(
 # ============================================================
 with tab_home:
 
-    st.header("Knowledge Graph Overview")
+    st.subheader("Knowledge Graph Overview")
 
     col1, col2 = st.columns(2)
 
@@ -92,15 +99,32 @@ with tab_home:
         st.metric("Edges", f"{G.number_of_edges():,}")
 
     st.markdown("---")
+    st.subheader("Graph Statistics")
+    
+    stat_col1, stat_col2, stat_col3 = st.columns(3)
+    with stat_col1:
+        st.metric("Countries", stats.get("countries", "N/A"))
+        st.metric("Continents", stats.get("continents", "N/A"))
 
+    with stat_col2:
+        st.metric("Capitals", stats.get("capitals", "N/A"))
+        st.metric("Languages", stats.get("languages", "N/A"))
+
+    with stat_col3:
+        st.metric("Currencies", stats.get("currencies", "N/A"))
+
+    st.markdown("---")
+
+    st.subheader("Demo capabilities")
     st.write(
         """
         This demo allows you to:
 
-        - Compare semantic similarity between entities
+        - Compare semantic similarity between geographical entities
+        - Perform a semantic search over the graph
         - Inspect entity metadata and relationships
         - Explore local graph neighborhoods
-        - Visualize graph structure around a selected entity
+
         """
     )
 
@@ -148,7 +172,7 @@ with tab_compare:
         st.success("Similarity computed successfully")
 
         st.metric(
-            label="Semantic Similarity Score",
+            label="Relatedness of entities in DBpedia:",
             value=f"{similarity_result:.4f}"
             if isinstance(similarity_result, (float, int))
             else similarity_result
@@ -161,72 +185,17 @@ with tab_compare:
             if isinstance(word_result, (float, int))
             else word_result
         )
+        
 # ============================================================
-# VIEW ENTITY TAB
-# ============================================================
-with tab_entity:
-
-    st.header("Entity Information")
-
-    selected_label = st.selectbox(
-        "Select Entity",
-        [l for _, l in labels],
-        key="entity_info"
-    )
-
-    selected_node = label_to_node[selected_label]
-
-    info = get_entity_info(G, selected_node)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.write(f"**QID:** {info['qid']}")
-        st.write(f"**Label:** {info['label']}")
-
-    with col2:
-        st.write(f"**Degree:** {info['degree']}")
-        st.write(f"**DBpedia:** {info['dbpedia']}")
-
-    st.markdown("### Relations")
-
-    if info["relations"]:
-        for rel in info["relations"][:20]:
-            st.write(
-                f"• **{rel['relation']}** → {rel['target']}"
-            )
-    else:
-        st.info("No relations found.")
-
-# ============================================================
-# EXPLORE GRAPH TAB
-# ============================================================
-with tab_graph:
-
-    st.header("Local Graph Visualization")
-
-    graph_center_label = st.selectbox(
-        "Graph Center",
-        [l for _, l in labels],
-        key="graph_center"
-    )
-
-    graph_center_node = label_to_node[graph_center_label]
-
-    H = build_local_graph(
-        G,
-        graph_center_node
-    )
-
-    visualize_graph(H)
-    
+# SEMANTIC SEARCH TAB
+# ============================================================           
 with tab_search:
 
     st.header("Semantic Search")
 
     query = st.text_input(
-        "Enter a concept",
-        placeholder="e.g. space adventure"
+        "Enter a geographic concept",
+        placeholder="e.g. England, euro"
     )
 
     top_k = st.slider(
@@ -260,3 +229,61 @@ with tab_search:
                     f"**{label}** "
                     f"(score={score:.3f})"
                 )
+                
+# ============================================================
+# VIEW ENTITY TAB
+# ============================================================
+with tab_entity:
+
+    st.header("Entity Information")
+
+    selected_label = st.selectbox(
+        "Select Entity",
+        [l for _, l in labels],
+        key="entity_info"
+    )
+
+    selected_node = label_to_node[selected_label]
+
+    info = get_entity_info(G, selected_node)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write(f"**QID:** {info['qid']}")
+        st.write(f"**Label:** {info['label']}")
+
+    with col2:
+        st.write(f"**Degree:** {info['degree']}")
+
+    st.markdown("### Relations")
+
+    if info["relations"]:
+        for rel in info["relations"][:20]:
+            st.write(
+                f"• **{rel['relation']}** → {rel['target']}"
+            )
+    else:
+        st.info("No relations found.")
+
+# ============================================================
+# EXPLORE GRAPH TAB
+# ============================================================
+with tab_graph:
+
+    st.header("Local Graph Visualization")
+
+    graph_center_label = st.selectbox(
+        "Graph Center",
+        [l for _, l in labels],
+        key="graph_center"
+    )
+
+    graph_center_node = label_to_node[graph_center_label]
+
+    H = build_local_graph(
+        G,
+        graph_center_node
+    )
+
+    visualize_graph(H)
