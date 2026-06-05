@@ -5,9 +5,9 @@ from collections import defaultdict
 from tqdm import tqdm
 import pickle
 
-INPUT_PATH = "data/processed/movies_subgraph.txt"
+INPUT_PATH = "data/processed/geo_subgraph_v2.txt"
 ENTITY_PATH = "data/raw/wikidata5m_entity.txt"
-OUTPUT_PATH = "data/processed/movies_graph.gpickle"
+OUTPUT_PATH = "data/processed/geo_graph_v2.gpickle"
 
 
 # ------------------------------------------------------------

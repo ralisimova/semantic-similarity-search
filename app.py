@@ -22,7 +22,7 @@ st.set_page_config(
 # ------------------------------------------------------------
 @st.cache_resource
 def get_graph():
-    return load_graph("data/processed/movies_graph.gpickle")
+    return load_graph("data/processed/geo_graph_v2.gpickle")
 
 
 G = get_graph()
