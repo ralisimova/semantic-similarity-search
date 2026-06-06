@@ -1,4 +1,6 @@
 import re
+import json
+import os
 
 import networkx as nx
 from collections import defaultdict
@@ -7,20 +9,33 @@ import pickle
 
 INPUT_PATH = "data/processed/geo_subgraph_v2.txt"
 ENTITY_PATH = "data/raw/wikidata5m_entity.txt"
+CANONICAL_PATH = "data/processed/canonical_labels.json"
 OUTPUT_PATH = "data/processed/geo_graph_v2.gpickle"
 
 
 # ------------------------------------------------------------
 # STEP 1: Load entity labels 
 # ------------------------------------------------------------
-def load_entity_map(path):
-    entity_map = {}
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            parts = line.strip().split("\t")
-            if len(parts) >= 2:
-                entity_map[parts[0]] = parts[1]
-    return entity_map
+# def load_entity_map(path):
+#     entity_map = {}
+#     with open(path, "r", encoding="utf-8") as f:
+#         for line in f:
+#             parts = line.strip().split("\t")
+#             if len(parts) >= 2:
+#                 entity_map[parts[0]] = parts[1]
+#     return entity_map
+
+
+def load_canonical_labels(path):
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data
+    except Exception as e:
+        print("Failed to load canonical labels:", e)
+        return {}
 
 # ------------------------------------------------------------
 # STEP 2: Load  triples
@@ -78,7 +93,7 @@ def save_graph(G, path):
 # ------------------------------------------------------------
 def main():
     print("Loading entity map...")
-    entity_map = load_entity_map(ENTITY_PATH)
+    entity_map = load_canonical_labels(CANONICAL_PATH)
 
     print("Loading triples...")
     triples = load_triples(INPUT_PATH)

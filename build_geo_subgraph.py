@@ -1,12 +1,15 @@
+import json
 import networkx as nx
 import pandas as pd
 from tqdm import tqdm
 import pickle
+
 ENTITY_FILE = "data/raw/wikidata5m_entity.txt"
 RELATION_FILE = "data/raw/wikidata5m_relation.txt"
 TRIPLE_FILE = "data/raw/wikidata5m_transductive_train.txt"
 
 OUTPUT_PATH = "data/processed/geo_subgraph_v2.txt"
+STATS_OUTPUT_PATH = "data/processed/geo_graph_stats.json"
 
 
 
@@ -18,6 +21,15 @@ print("Loading entity labels...")
 entity_labels = {}
 label_to_qid = {}
 
+def best_label(labels):
+
+    labels = [x.strip() for x in labels if x.strip()]
+
+    # prefer ASCII-ish English-looking labels
+    labels = sorted(labels, key=len)
+
+    return labels[0]
+
 with open(ENTITY_FILE, encoding="utf8") as f:
     for line in tqdm(f):
 
@@ -27,7 +39,7 @@ with open(ENTITY_FILE, encoding="utf8") as f:
         labels = parts[1:]
 
         # store primary label
-        entity_labels[qid] = labels[0]
+        entity_labels[qid] = best_label(labels)
 
         # store ALL aliases
         for label in labels:
@@ -35,26 +47,12 @@ with open(ENTITY_FILE, encoding="utf8") as f:
             if label:
                 label_to_qid[label] = qid
                 
-# entity_labels = {}
-
-# with open(ENTITY_FILE, encoding="utf8") as f:
-#     for line in tqdm(f):
-#         parts = line.strip().split("\t")
-#         if len(parts) >= 2:
-#             entity_labels[parts[0]] = parts[1]
-
-# print("Entities:", len(entity_labels))
-
-# label_to_qid = {}
-
-# for qid, label in entity_labels.items():
-#     label_to_qid[label.strip().lower()] = qid
     
 # =========================
 # WIKIDATA PROPERTIES
 # =========================
 
-# TODOadd share border
+# TODO add share border
 P_CAPITAL = "P36"
 P_LANGUAGE = "P37"
 P_CURRENCY = "P38"
@@ -66,28 +64,9 @@ P_MEMBER_OF = "P463"
 # LOAD COUNTRY SEEDS
 # =========================
 
-print("Loading UN countries...")
 
 countries = set()
-missing = []
-# with open("data/raw/un_countries.txt") as f:
-#     # for line in f:
-#     #     countries.add(line.strip())
-    
-#     for line in f:
 
-#         country_name = line.strip()
-
-#         qid = label_to_qid.get(
-#             country_name.lower()
-#         )
-
-#         if qid:
-#             countries.add(qid)
-#         else:
-#             missing.append(country_name)
-
-# print("Countries:", len(countries), "Missing:", missing)
 
 # =========================
 # BUILD GRAPH
@@ -117,8 +96,6 @@ for country in countries:
         type="country"
     )
 
-# country_nodes = [n for n, attrs in G.nodes(data=True) if attrs.get("type") == "country"]
-# print(country_nodes)
 
 # =========================
 # EXTRACT RELATIONS
@@ -149,7 +126,6 @@ with open(TRIPLE_FILE, encoding="utf8") as f:
 
         if h not in countries:
             continue
-        # print('here')
         # CAPITAL
         if r == P_CAPITAL:
 
@@ -225,10 +201,158 @@ print("Capitals:", len(capitals))
 print("Currencies:", len(currencies))
 print("Continents:", len(continents))
 print("Languages:", len(languages))
-print ('Current countries',countries)
 
 print("Final nodes:", G.number_of_nodes())
 print("Final edges:", G.number_of_edges())
+
+stats = {
+    "countries": len(countries),
+    "capitals": len(capitals),
+    "currencies": len(currencies),
+    "continents": len(continents),
+    "languages": len(languages),
+    "final_nodes": G.number_of_nodes(),
+    "final_edges": G.number_of_edges(),
+}
+
+
+
+
+
+import requests
+from tqdm import tqdm
+
+WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
+
+# def fetch_labels(qids):
+
+#     ids = "|".join(qids)
+
+#     url = "https://www.wikidata.org/w/api.php"
+
+#     params = {
+#         "action": "wbgetentities",
+#         "format": "json",
+#         "ids": ids,
+#         "languages": "en",
+#         "props": "labels"
+#     }
+
+#     r = requests.get(url, params=params)
+
+#     data = r.json()
+
+#     labels = {}
+
+#     for qid, entity in data["entities"].items():
+
+#         label = (
+#             entity
+#             .get("labels", {})
+#             .get("en", {})
+#             .get("value")
+#         )
+
+#         if label:
+#             labels[qid] = label
+
+#     return labels
+
+def fetch_labels_sparql(qids):
+    values = " ".join(f"wd:{qid}" for qid in qids)
+
+    query = f"""
+    SELECT ?item ?itemLabel
+    WHERE {{
+      VALUES ?item {{ {values} }}
+
+      SERVICE wikibase:label {{
+        bd:serviceParam wikibase:language "en".
+      }}
+    }}
+    """
+    # query = """
+    # SELECT ?item ?itemLabel ?capital ?capitalLabel ?language ?languageLabel ?currency ?currencyLabel ?continent ?continentLabel
+    # WHERE {
+    #     VALUES ?item {
+    #       %s
+    #     }
+
+    #     OPTIONAL { ?item wdt:P36 ?capital. }
+    #     OPTIONAL { ?item wdt:P37 ?language. }
+    #     OPTIONAL { ?item wdt:P38 ?currency. }
+    #     OPTIONAL { ?item wdt:P30 ?continent. }
+
+    #     SERVICE wikibase:label {
+    #       bd:serviceParam wikibase:language "en".
+    #     }
+    # }
+    # """ % values
+
+    headers = {
+        "Accept": "application/sparql-results+json",
+        "User-Agent": "GeoGraphBuilder/1.0"
+    }
+
+    r = requests.get(
+        WIKIDATA_SPARQL,
+        params={"query": query},
+        headers=headers,
+        timeout=60,
+    )
+
+    r.raise_for_status()
+
+    data = r.json()
+
+    labels = {}
+
+    for row in data["results"]["bindings"]:
+        qid = row["item"]["value"].split("/")[-1]
+        label = row["itemLabel"]["value"]
+
+        labels[qid] = label
+
+    return labels
+all_nodes = list(G.nodes())
+
+print("Fetching canonical Wikidata labels...")
+
+canonical_labels = {}
+
+BATCH_SIZE = 50
+
+for i in tqdm(range(0, len(all_nodes), BATCH_SIZE)):
+    batch = all_nodes[i:i+BATCH_SIZE]
+
+    try:
+        canonical_labels.update(
+            fetch_labels_sparql(batch)
+        )
+    except Exception as e:
+        print("Failed batch:", e)
+        
+for node in G.nodes():
+
+    if node in canonical_labels:
+        print('Updating label for node:', node, '->', canonical_labels[node])
+        G.nodes[node]["label"] = canonical_labels[node] 
+        
+        
+with open(
+    "data/processed/canonical_labels.json",
+    "w",
+    encoding="utf8"
+) as f:
+    json.dump(
+        canonical_labels,
+        f,
+        ensure_ascii=False,
+        indent=2
+    )
+
+with open(STATS_OUTPUT_PATH, "w", encoding="utf-8") as f:
+    json.dump(stats, f, indent=2)
 
 with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
     for u, v, d in G.edges(data=True):
