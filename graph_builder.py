@@ -16,14 +16,14 @@ OUTPUT_PATH = "data/processed/geo_graph_v2.gpickle"
 # ------------------------------------------------------------
 # STEP 1: Load entity labels 
 # ------------------------------------------------------------
-# def load_entity_map(path):
-#     entity_map = {}
-#     with open(path, "r", encoding="utf-8") as f:
-#         for line in f:
-#             parts = line.strip().split("\t")
-#             if len(parts) >= 2:
-#                 entity_map[parts[0]] = parts[1]
-#     return entity_map
+def load_entity_map(path):
+    entity_map = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            parts = line.strip().split("\t")
+            if len(parts) >= 2:
+                entity_map[parts[0]] = parts[1]
+    return entity_map
 
 
 def load_canonical_labels(path):
@@ -54,17 +54,15 @@ def load_triples(path):
 # ------------------------------------------------------------
 # STEP 3: Build NetworkX graph
 # ------------------------------------------------------------
-def build_graph(triples, entity_map):
+def build_graph(triples, labels_map, entity_map):
     G = nx.Graph()
 
     for h, r, t in tqdm(triples, desc="Building graph"):
-        # Add nodes with labels
         if h not in G:
-            G.add_node(h, label=entity_map.get(h, h))
+            G.add_node(h, label=labels_map.get(h, entity_map.get(h, h)))
         if t not in G:
-            G.add_node(t, label=entity_map.get(t, t))
+            G.add_node(t, label=labels_map.get(t, entity_map.get(t, t)))
 
-        # Add edges
         G.add_edge(h, t, relation=r)
 
     return G
@@ -92,14 +90,16 @@ def save_graph(G, path):
 # MAIN
 # ------------------------------------------------------------
 def main():
-    print("Loading entity map...")
-    entity_map = load_canonical_labels(CANONICAL_PATH)
+    print("Loading labels map...")
+    labels_map = load_canonical_labels(CANONICAL_PATH)
+    entity_map = load_entity_map(ENTITY_PATH)
+    
 
     print("Loading triples...")
     triples = load_triples(INPUT_PATH)
 
     print("Building NetworkX graph...")
-    G = build_graph(triples, entity_map)
+    G = build_graph(triples, labels_map,entity_map)
 
     print("Computing node features...")
     compute_node_features(G)

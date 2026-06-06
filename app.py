@@ -112,6 +112,8 @@ with tab_home:
 
     with stat_col3:
         st.metric("Currencies", stats.get("currencies", "N/A"))
+        st.metric("Neighbors", stats.get("neighbors", "N/A"))
+        
 
     st.markdown("---")
 
@@ -155,9 +157,6 @@ with tab_compare:
 
     entity_a = label_to_node[entity_a_label]
     entity_b = label_to_node[entity_b_label]
-    print(entity_a)
-    print(entity_b)
-    print(entity_a == entity_b)
 
     if st.button(
         "Compute Semantic Similarity",
@@ -167,7 +166,6 @@ with tab_compare:
 
         similarity_result = sematch_similarity(entity_a, entity_b)
         word_result = word_similarity(entity_a_label, entity_b_label)
-        
 
         st.success("Similarity computed successfully")
 
