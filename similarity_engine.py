@@ -43,39 +43,6 @@ def sematch_similarity(a_qid, b_qid):
         return 0.0
 
 
-# Computing English word similarity using Li method
-# def word_similarity(word1, word2, method='wup'):
-#     try:
-#         score = wns.word_similarity(word1, word2, method)
-#         return float(score) if score is not None else 0.0
-#     except Exception as e:
-#         print("WordNet similarity error:", e)
-#         return 0.0
-# def word_similarity(text1, text2, method="wup"):
-
-#     t1 = text1.lower().split()
-#     t2 = text2.lower().split()
-
-#     best = 0.0
-
-#     for w1 in t1:
-#         for w2 in t2:
-
-#             try:
-#                 score = wns.word_similarity(
-#                     w1,
-#                     w2,
-#                     method
-#                 )
-
-#                 if score is not None:
-#                     best = max(best, score)
-
-#             except Exception:
-#                 pass
-
-#     return best
-
 import re
 
 def tokenize(text):

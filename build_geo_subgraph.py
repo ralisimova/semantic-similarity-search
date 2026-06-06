@@ -18,6 +18,7 @@ STATS_OUTPUT_PATH = "data/processed/geo_graph_stats.json"
 # =========================
 print("Loading entity labels...")
 
+# TODO check the need for these
 entity_labels = {}
 label_to_qid = {}
 
@@ -59,6 +60,7 @@ P_CURRENCY = "P38"
 P_CONTINENT = "P30"
 UN_QID = "Q1065"  # United Nations
 P_MEMBER_OF = "P463"
+P_BORDER = "P47"
 
 # =========================
 # LOAD COUNTRY SEEDS
@@ -66,7 +68,7 @@ P_MEMBER_OF = "P463"
 
 
 countries = set()
-
+neighbors = set()
 
 # =========================
 # BUILD GRAPH
@@ -194,6 +196,26 @@ with open(TRIPLE_FILE, encoding="utf8") as f:
 
             continents.add(t)
             
+            # Neighboring countries
+        elif r == P_BORDER:
+
+            if t not in countries or h not in countries:
+                continue
+
+            G.add_edge(
+                h,
+                t,
+                relation="shares_border_with"
+            )
+            # We want both directions since the relationship is symmetric
+            G.add_edge(
+                t,
+                h,
+                relation="shares_border_with"
+            )
+
+            neighbors.add((h, t))
+            
             
             
 print("Countries:", len(countries))
@@ -224,39 +246,6 @@ from tqdm import tqdm
 
 WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
 
-# def fetch_labels(qids):
-
-#     ids = "|".join(qids)
-
-#     url = "https://www.wikidata.org/w/api.php"
-
-#     params = {
-#         "action": "wbgetentities",
-#         "format": "json",
-#         "ids": ids,
-#         "languages": "en",
-#         "props": "labels"
-#     }
-
-#     r = requests.get(url, params=params)
-
-#     data = r.json()
-
-#     labels = {}
-
-#     for qid, entity in data["entities"].items():
-
-#         label = (
-#             entity
-#             .get("labels", {})
-#             .get("en", {})
-#             .get("value")
-#         )
-
-#         if label:
-#             labels[qid] = label
-
-#     return labels
 
 def fetch_labels_sparql(qids):
     values = " ".join(f"wd:{qid}" for qid in qids)
@@ -271,23 +260,7 @@ def fetch_labels_sparql(qids):
       }}
     }}
     """
-    # query = """
-    # SELECT ?item ?itemLabel ?capital ?capitalLabel ?language ?languageLabel ?currency ?currencyLabel ?continent ?continentLabel
-    # WHERE {
-    #     VALUES ?item {
-    #       %s
-    #     }
 
-    #     OPTIONAL { ?item wdt:P36 ?capital. }
-    #     OPTIONAL { ?item wdt:P37 ?language. }
-    #     OPTIONAL { ?item wdt:P38 ?currency. }
-    #     OPTIONAL { ?item wdt:P30 ?continent. }
-
-    #     SERVICE wikibase:label {
-    #       bd:serviceParam wikibase:language "en".
-    #     }
-    # }
-    # """ % values
 
     headers = {
         "Accept": "application/sparql-results+json",
