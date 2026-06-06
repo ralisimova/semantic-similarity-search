@@ -3,43 +3,15 @@ import requests
 import networkx as nx
 from tqdm import tqdm
 
-ENTITY_FILE = "data/raw/wikidata5m_entity.txt"
 TRIPLE_FILE = "data/raw/wikidata5m_transductive_train.txt"
 
 OUTPUT_PATH = "data/processed/geo_subgraph_v2.txt"
 STATS_OUTPUT_PATH = "data/processed/geo_graph_stats.json"
+LABELS_OUTPUT_PATH = "data/processed/labels.json"
 
-# =========================
-# LOAD ENTITIES
-# =========================
-print("Loading entity labels...")
-
-# Map of QID -> preferred label
-entity_labels = {}
-
-
-def best_label(labels):
-    """Choose a short, primary label from a list of aliases."""
-    labels = [x.strip() for x in labels if x.strip()]
-    if not labels:
-        return ""
-    # prefer shorter labels as a simple heuristic
-    labels = sorted(labels, key=len)
-    return labels[0]
-
-
-with open(ENTITY_FILE, encoding="utf8") as f:
-    for line in tqdm(f):
-        parts = line.strip().split("\t")
-        qid = parts[0]
-        labels = parts[1:]
-        entity_labels[qid] = best_label(labels)
-                
-    
 # =========================
 # WIKIDATA PROPERTIES
 # =========================
-
 P_CAPITAL = "P36"
 P_LANGUAGE = "P37"
 P_CURRENCY = "P38"
@@ -58,7 +30,6 @@ continents = set()
 # =========================
 # Add Countries
 # =========================
-
 with open(TRIPLE_FILE, encoding="utf8") as f:
     for line in f:
         h, r, t = line.strip().split("\t")
@@ -73,7 +44,6 @@ for country in countries:
 
     G.add_node(
         country,
-        label=entity_labels.get(country, country),
         type="country"
     )
 
@@ -81,8 +51,6 @@ for country in countries:
 # =========================
 # EXTRACT RELATIONS
 # =========================
-
-
 with open(TRIPLE_FILE, encoding="utf8") as f:
     for line in tqdm(f):
         h, r, t = line.strip().split("\t")
@@ -91,25 +59,25 @@ with open(TRIPLE_FILE, encoding="utf8") as f:
 
         # CAPITAL
         if r == P_CAPITAL:
-            G.add_node(t, label=entity_labels.get(t, t), type="capital")
+            G.add_node(t, type="capital")
             G.add_edge(h, t, relation="capital")
             capitals.add(t)
 
         # LANGUAGE
         elif r == P_LANGUAGE:
-            G.add_node(t, label=entity_labels.get(t, t), type="language")
+            G.add_node(t, type="language")
             G.add_edge(h, t, relation="official_language")
             languages.add(t)
 
         # CURRENCY
         elif r == P_CURRENCY:
-            G.add_node(t, label=entity_labels.get(t, t), type="currency")
+            G.add_node(t, type="currency")
             G.add_edge(h, t, relation="currency")
             currencies.add(t)
 
         # CONTINENT
         elif r == P_CONTINENT:
-            G.add_node(t, label=entity_labels.get(t, t), type="continent")
+            G.add_node(t, type="continent")
             G.add_edge(h, t, relation="continent")
             continents.add(t)
 
@@ -187,12 +155,8 @@ for i in tqdm(range(0, len(all_nodes), BATCH_SIZE)):
     except Exception as e:
         print("Failed batch:", e)
 
-for node in G.nodes():
-    if node in labels:
-        G.nodes[node]["label"] = labels[node]
 
-
-with open("data/processed/canonical_labels.json", "w", encoding="utf8") as f:
+with open(LABELS_OUTPUT_PATH, "w", encoding="utf8") as f:
     json.dump(labels, f, ensure_ascii=False, indent=2)
 
 with open(STATS_OUTPUT_PATH, "w", encoding="utf-8") as f:

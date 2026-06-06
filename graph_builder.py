@@ -1,32 +1,20 @@
-import re
 import json
 import os
 
 import networkx as nx
-from collections import defaultdict
 from tqdm import tqdm
 import pickle
 
 INPUT_PATH = "data/processed/geo_subgraph_v2.txt"
 ENTITY_PATH = "data/raw/wikidata5m_entity.txt"
-CANONICAL_PATH = "data/processed/canonical_labels.json"
+LABELS_PATH = "data/processed/labels.json"
 OUTPUT_PATH = "data/processed/geo_graph_v2.gpickle"
 
 
 # ------------------------------------------------------------
-# STEP 1: Load entity labels 
+# STEP 1: Load labels
 # ------------------------------------------------------------
-def load_entity_map(path):
-    entity_map = {}
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            parts = line.strip().split("\t")
-            if len(parts) >= 2:
-                entity_map[parts[0]] = parts[1]
-    return entity_map
-
-
-def load_canonical_labels(path):
+def load_labels(path):
     if not os.path.exists(path):
         return {}
     try:
@@ -34,7 +22,7 @@ def load_canonical_labels(path):
             data = json.load(f)
             return data
     except Exception as e:
-        print("Failed to load canonical labels:", e)
+        print("Failed to load labels:", e)
         return {}
 
 # ------------------------------------------------------------
@@ -54,14 +42,14 @@ def load_triples(path):
 # ------------------------------------------------------------
 # STEP 3: Build NetworkX graph
 # ------------------------------------------------------------
-def build_graph(triples, labels_map, entity_map):
+def build_graph(triples, labels_map):
     G = nx.Graph()
 
     for h, r, t in tqdm(triples, desc="Building graph"):
         if h not in G:
-            G.add_node(h, label=labels_map.get(h, entity_map.get(h, h)))
-        if t not in G:
-            G.add_node(t, label=labels_map.get(t, entity_map.get(t, t)))
+            G.add_node(h, label=labels_map.get(h, h))
+        if t not in G: 
+            G.add_node(t, label=labels_map.get(t, t))
 
         G.add_edge(h, t, relation=r)
 
@@ -91,15 +79,14 @@ def save_graph(G, path):
 # ------------------------------------------------------------
 def main():
     print("Loading labels map...")
-    labels_map = load_canonical_labels(CANONICAL_PATH)
-    entity_map = load_entity_map(ENTITY_PATH)
+    labels_map = load_labels(LABELS_PATH)
     
 
     print("Loading triples...")
     triples = load_triples(INPUT_PATH)
 
     print("Building NetworkX graph...")
-    G = build_graph(triples, labels_map,entity_map)
+    G = build_graph(triples, labels_map)
 
     print("Computing node features...")
     compute_node_features(G)
